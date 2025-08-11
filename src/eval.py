@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import ogbench
 from model.pointmaze_mlp import Pointmaze_MLP
+import gym
 
 
 # -------------------------
@@ -128,71 +129,100 @@ def visualize_on_ogbench_env(
     """
     Visualize trajectory on environment rendering.
     """
-    _, info = env.reset(options=dict(task_id=task_id, render_goal=True))
-    render = env.render()
 
-    traj_np = trajectory.cpu().numpy()
-    T_plus_1, N, D = traj_np.shape
-    assert D >= 2, "Trajectory must have at least 2D positions"
 
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.imshow(render, origin='lower')
-    ax.set_title(title)
+    # Evaluate the agent.
+    ob, info = env.reset()  # Reset the environment.
 
-    bounds = env.unwrapped._env.boundaries
-    low, high = np.array(bounds[0]), np.array(bounds[1])
+    done = False
+    while not done:
+        action = env.action_space.sample()  # Replace this with your agent's action.
+        ob, reward, terminated, truncated, info = env.step(action)  # Gymnasium-style step.
+        # If the agent achieves the task, `terminated` will be `True`. If the episode length
+        # exceeds the maximum length without achieving the task, `truncated` will be `True`.
+        done = terminated or truncated
+        env.render()  # Render the current frame (optional).
 
-    def to_pixel(pos):
-        norm = (pos - low) / (high - low)
-        h, w, *_ = render.shape
-        return np.stack([norm[:, 0] * w, norm[:, 1] * h], axis=-1)
+    env.close()
 
-    for i in range(0, N, every_k):
-        traj = traj_np[:, i, :2]
-        pix_traj = to_pixel(traj)
-        ax.plot(pix_traj[:, 0], pix_traj[:, 1], alpha=0.8, linewidth=1.5)
-        ax.scatter(pix_traj[0, 0], pix_traj[0, 1], color='red', s=20, label='Start' if i == 0 else "")
-        ax.scatter(pix_traj[-1, 0], pix_traj[-1, 1], color='green', s=20, label='End' if i == 0 else "")
+    # _, info = env.reset(options=dict(task_id=task_id, render_goal=True))
+    # render = env.render()
 
-    if goal is not None:
-        goal_pix = to_pixel(goal[None, :])[0]
-        ax.scatter(goal_pix[0], goal_pix[1], color='blue', s=30, marker='*', label='Goal')
+    # traj_np = trajectory.cpu().numpy()
+    # T_plus_1, N, D = traj_np.shape
+    # assert D >= 2, "Trajectory must have at least 2D positions"
 
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_aspect("equal")
-    ax.legend()
-    plt.tight_layout()
-    plt.show()
+    # fig, ax = plt.subplots(figsize=(6, 6))
+    # ax.imshow(render, origin='lower')
+    # ax.set_title(title)
+
+    # bounds = env.unwrapped.boundaries
+    # low, high = np.array(bounds[0]), np.array(bounds[1])
+
+    # def to_pixel(pos):
+    #     norm = (pos - low) / (high - low)
+    #     h, w, *_ = render.shape
+    #     return np.stack([norm[:, 0] * w, norm[:, 1] * h], axis=-1)
+
+    # for i in range(0, N, every_k):
+    #     traj = traj_np[:, i, :2]
+    #     pix_traj = to_pixel(traj)
+    #     ax.plot(pix_traj[:, 0], pix_traj[:, 1], alpha=0.8, linewidth=1.5)
+    #     ax.scatter(pix_traj[0, 0], pix_traj[0, 1], color='red', s=20, label='Start' if i == 0 else "")
+    #     ax.scatter(pix_traj[-1, 0], pix_traj[-1, 1], color='green', s=20, label='End' if i == 0 else "")
+
+    # if goal is not None:
+    #     goal_pix = to_pixel(goal[None, :])[0]
+    #     ax.scatter(goal_pix[0], goal_pix[1], color='blue', s=30, marker='*', label='Goal')
+
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+    # ax.set_aspect("equal")
+    # ax.legend()
+    # plt.tight_layout()
+    # plt.show()
 
 
 # -------------------------
 # Main Entry
 # -------------------------
 def sample(config):
-    device = config.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    # device =  "cpu"
 
-    model = Pointmaze_MLP(input_dim=2).to(device)
-    model.load_state_dict(torch.load(config.model_path, map_location=device))
+    # model = Pointmaze_MLP(input_dim=2).to(device)
+    # model.load_state_dict(torch.load(config.model_path, map_location=device))
 
-    env, _, _ = ogbench.make_env_and_datasets(config.dataset_name)
-    _, info = env.reset(options=dict(task_id=config.task_id))
-    goal = info['goal'][:2]
+    # env, _, _ = ogbench.make_env_and_datasets(config.dataset_name)
+    # _, info = env.reset(options=dict(task_id=config.task_id))
+    # goal = info['goal'][:2]
 
-    x_T = torch.randn(config.n_particles, 2, device=device)
+    # x_T = torch.randn(config.n_particles, 2, device=device)
 
-    if config.eval_mode == "ddim":
-        trajectory = reverse(x_T, model=model, T=config.n_discrete_steps, device=device)
-    elif config.eval_mode == "bfs":
-        trajectory = search_guided_sample(
-            x_T,
-            model=model,
-            T=config.n_discrete_steps,
-            device=device,
-            n_particles=config.n_particles,
-            langevin_steps=config.langevin_steps
-        )
-    else:
-        raise ValueError(f"Unsupported eval_mode: {config.eval_mode}")
+    # if config.eval_mode == "ddim":
+    #     trajectory = reverse(x_T, model=model, T=config.n_discrete_steps, device=device)
+    # elif config.eval_mode == "bfs":
+    #     trajectory = search_guided_sample(
+    #         x_T,
+    #         model=model,
+    #         T=config.n_discrete_steps,
+    #         device=device,
+    #         n_particles=config.n_particles,
+    #         langevin_steps=config.langevin_steps
+    #     )
+    # else:
+    #     raise ValueError(f"Unsupported eval_mode: {config.eval_mode}")
 
-    visualize_on_ogbench_env(env, trajectory, task_id=config.task_id, goal=goal)
+    # visualize_on_ogbench_env(env, trajectory, task_id=config.task_id, goal=goal)
+
+    env = gym.make("CartPole-v1", render_mode="human")
+    ob, info = env.reset()
+
+    for _ in range(100):
+        action = env.action_space.sample()
+        ob, reward, terminated, truncated, info = env.step(action)
+        env.render()
+
+        if terminated or truncated:
+            break
+
+    env.close()
