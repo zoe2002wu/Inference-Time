@@ -1,15 +1,15 @@
 import argparse as p
-from train import train
+from src.train import train
+from src.eval import sample
 import ogbench
 
 def run_main(config):
-    dataset_name = 'humanoidmaze-large-navigate-v0'
-    env, train_dataset, val_dataset = ogbench.make_env_and_datasets(dataset_name)
+    env, train_dataset, val_dataset = ogbench.make_env_and_datasets(config.dataset_name, compact_dataset=True)
 
     if config.mode == 'train':
         train(config, train_dataset)
     elif config.mode == 'eval':
-        run_evaluation(config)
+        sample(config)
     elif config.mode == 'continue':
         print("Continue training not yet implemented.")
 
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_train_iters', type=int, default=100)
 
     #test
-    parser.add_argument('--eval_mode', choices=['ddim', 'bfs', 'dfs'], required=True)
+    parser.add_argument('--eval_mode', choices=['ddim', 'bfs', 'dfs'], default='ddim')
     parser.add_argument('--n_discrete_steps', type=int, default=100)
     parser.add_argument('--model_path', type=str, default='diffusion_model.pt')
 

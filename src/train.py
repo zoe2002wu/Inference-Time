@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-from model import Pointmaze_MLP
+from model.pointmaze_mlp import Pointmaze_MLP
 
 class DiffusionDataset(Dataset):
     '''

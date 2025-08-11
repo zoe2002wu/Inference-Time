@@ -1,3 +1,6 @@
+import torch
+import torch.nn as nn
+
 class Pointmaze_MLP(nn.Module):
     def __init__(self, input_dim=2):
         super().__init__()

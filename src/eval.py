@@ -3,7 +3,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 import ogbench
-from model import Pointmaze_MLP  # or from train import DiffusionModel
+from model.pointmaze_mlp import Pointmaze_MLP
 
 
 # -------------------------
@@ -169,7 +169,7 @@ def visualize_on_ogbench_env(
 # -------------------------
 # Main Entry
 # -------------------------
-def run_evaluation(config):
+def sample(config):
     device = config.device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     model = Pointmaze_MLP(input_dim=2).to(device)
