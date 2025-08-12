@@ -8,5 +8,5 @@ n_train_iters = 100
 
 #test
 eval_mode = ddim
-n_discrete_steps = 100
+n_discrete_steps = 1000
 n_particles = 256

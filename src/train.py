@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from model.pointmaze_mlp import Pointmaze_MLP
+import numpy as np
+import matplotlib.pyplot as plt
 
 class DiffusionDataset(Dataset):
     '''
@@ -33,41 +35,79 @@ def q_sample(x0, t):
     x_t = alpha_t * x0 + sigma_t * noise
     return x_t, noise
 
-def train(config, train_dataset):
+def visualize_on_ogbench_env(env, traj, task_id=1, title="Sampled Trajectories", every_k=5, particle_idx: int = 0, delay: float = 0.05):
+
+    for pos in traj:
+        qpos = pos  # [2]
+        qvel = np.zeros_like(qpos)  # [2] or whatever matches the env
+
+        try:
+            env.unwrapped.set_state(qpos, qvel)
+        except Exception as e:
+            print(f"set_state failed: {e}")
+            break
+
+        frame = env.render()
+        if isinstance(frame, np.ndarray):
+            plt.imshow(frame)
+            plt.axis('off')
+            plt.pause(delay)
+            plt.clf()
+        else:
+            time.sleep(delay)
+
+    env.close()
+
+def train(config, train_dataset, env):
     '''
     Run train
     '''
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    compact_dataset = True
+    obs = train_dataset['observations']
+    term = train_dataset['terminals']
+    index = np.where(term == 1.)[0][0]
+    traj = obs[:index]
 
-    dataset = DiffusionDataset(train_dataset, compact=compact_dataset)
-    dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
+    ob, info = env.reset(
+        options=dict(
+            task_id=config.task_id,  # Set the evaluation task. Each environment provides five
+                              # evaluation goals, and `task_id` must be in [1, 5].
+            render_goal=True,  # Set to `True` to get a rendered goal image (optional).
+        )
+    )
 
-    model = Pointmaze_MLP(input_dim=2).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    loss_fn = nn.MSELoss()
+    visualize_on_ogbench_env(env, traj)
 
-    for epoch in range(config.n_train_iters):
-        model.train()
-        total_loss = 0
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # compact_dataset = True
 
-        for x0 in dataloader:
-            x0 = x0.to(device)
-            t = torch.rand(x0.shape[0], 1, device=device)
-            x_t, noise = q_sample(x0, t)
-            pred_noise = model(x_t, t)
+    # dataset = DiffusionDataset(train_dataset, compact=compact_dataset)
+    # dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
 
-            loss = loss_fn(pred_noise, noise)
+    # model = Pointmaze_MLP(input_dim=2).to(device)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # loss_fn = nn.MSELoss()
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+    # for epoch in range(config.n_train_iters):
+    #     model.train()
+    #     total_loss = 0
 
-            total_loss += loss.item() * x0.size(0)
+    #     for x0 in dataloader:
+    #         x0 = x0.to(device)
+    #         t = torch.rand(x0.shape[0], 1, device=device)
+    #         x_t, noise = q_sample(x0, t)
+    #         pred_noise = model(x_t, t)
 
-        avg_loss = total_loss / len(dataset)
-        print(f"Epoch {epoch+1:03d}/{config.n_train_iters} | Loss: {avg_loss:.6f}")
+    #         loss = loss_fn(pred_noise, noise)
 
-    torch.save(model.state_dict(), "diffusion_model.pt")
-    print("Model saved to diffusion_model.pt")
-    return model
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+
+    #         total_loss += loss.item() * x0.size(0)
+
+    #     avg_loss = total_loss / len(dataset)
+    #     print(f"Epoch {epoch+1:03d}/{config.n_train_iters} | Loss: {avg_loss:.6f}")
+
+    # torch.save(model.state_dict(), "diffusion_model.pt")
+    # print("Model saved to diffusion_model.pt")
+    # return model

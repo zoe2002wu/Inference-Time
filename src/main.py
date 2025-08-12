@@ -7,7 +7,7 @@ def run_main(config):
     env, train_dataset, val_dataset = ogbench.make_env_and_datasets(config.dataset_name, compact_dataset=True)
 
     if config.mode == 'train':
-        train(config, train_dataset)
+        train(config, train_dataset, env)
     elif config.mode == 'eval':
         sample(config)
     elif config.mode == 'continue':
