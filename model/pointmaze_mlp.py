@@ -6,7 +6,7 @@ class Pointmaze_MLP(nn.Module):
         super().__init__()
         self.input_dim = input_dim
         self.net = nn.Sequential(
-            nn.Linear(input_dim * 2, 128), 
+            nn.Linear(input_dim + 1, 128),  # 2D input + 1D time = 3
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
@@ -14,6 +14,24 @@ class Pointmaze_MLP(nn.Module):
         )
 
     def forward(self, x, t):
-        t_proj = t.expand(-1, x.shape[1])  # Shape: [B, 2]
-        x_input = torch.cat([x, t_proj], dim=1)  # Shape: [B, 4]
-        return self.net(x_input)
+        """
+        x: [B, T, 2]
+        t: [B]
+        """
+        B, T, D = x.shape  # D should be 2
+
+        # Expand t to shape [B, T, 1] so it can be concatenated with x
+        t_proj = t.view(B, 1, 1).expand(-1, T, 1)  # [B, T, 1]
+
+        # Concatenate time to x → [B, T, 3]
+        x_input = torch.cat([x, t_proj], dim=-1)  # [B, T, 3]
+
+        # Flatten batch and time: [B*T, 3]
+        x_input_flat = x_input.view(B * T, -1)
+
+        # Pass through MLP
+        out_flat = self.net(x_input_flat)  # [B*T, 2]
+
+        # Reshape back to [B, T, 2]
+        out = out_flat.view(B, T, D)
+        return out

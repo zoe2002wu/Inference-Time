@@ -6,32 +6,22 @@ from model.pointmaze_mlp import Pointmaze_MLP
 import numpy as np
 import matplotlib.pyplot as plt
 
-class DiffusionDataset(Dataset):
-    '''
-    Parse dataset
-    '''
-    def __init__(self, data, compact=True):
-        if compact:
-            self.obs = data['observations']
-            self.valids = data['valids']
-            self.obs = self.obs[self.valids.astype(bool)]
-        else:
-            self.obs = data['observations']
-        self.obs = torch.tensor(self.obs, dtype=torch.float32)
+def parse_data(data):
+    obs = data['observations']
+    valids = data['valids']
+    valids_indices = np.where(valids == 0.)[0]
+    chunk_size = valids_indices[0]
+    split_dataset = [torch.tensor(obs[i-chunk_size:i-1]) for i in valids_indices]
+    return torch.stack(split_dataset, dim=0)
 
-    def __len__(self):
-        return len(self.obs)
-
-    def __getitem__(self, idx):
-        return self.obs[idx]
 
 def q_sample(x0, t):
     '''
     Forward Process
     '''
     noise = torch.randn_like(x0)
-    alpha_t = 1 - t
-    sigma_t = t
+    alpha_t = (1 - t).view(-1, 1, 1)  # shape: [128, 1, 1]
+    sigma_t = t.view(-1, 1, 1)        # shape: [128, 1, 1]
     x_t = alpha_t * x0 + sigma_t * noise
     return x_t, noise
 
@@ -41,11 +31,7 @@ def visualize_on_ogbench_env(env, traj, task_id=1, title="Sampled Trajectories",
         qpos = pos  # [2]
         qvel = np.zeros_like(qpos)  # [2] or whatever matches the env
 
-        try:
-            env.unwrapped.set_state(qpos, qvel)
-        except Exception as e:
-            print(f"set_state failed: {e}")
-            break
+        env.unwrapped.set_state(qpos, qvel)
 
         frame = env.render()
         if isinstance(frame, np.ndarray):
@@ -62,52 +48,44 @@ def train(config, train_dataset, env):
     '''
     Run train
     '''
-    obs = train_dataset['observations']
-    term = train_dataset['terminals']
-    index = np.where(term == 1.)[0][0]
-    traj = obs[:index]
+    dataset = parse_data(train_dataset)
+    dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
+
+    device = "cpu"
 
     ob, info = env.reset(
         options=dict(
             task_id=config.task_id,  # Set the evaluation task. Each environment provides five
-                              # evaluation goals, and `task_id` must be in [1, 5].
+                                # evaluation goals, and `task_id` must be in [1, 5].
             render_goal=True,  # Set to `True` to get a rendered goal image (optional).
         )
     )
 
-    visualize_on_ogbench_env(env, traj)
+    model = Pointmaze_MLP(input_dim=2).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    loss_fn = nn.MSELoss()
 
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # compact_dataset = True
+    for epoch in range(config.n_train_iters):
+        model.train()
+        total_loss = 0
 
-    # dataset = DiffusionDataset(train_dataset, compact=compact_dataset)
-    # dataloader = DataLoader(dataset, batch_size=config.batch_size, shuffle=True)
+        for x0 in dataloader:
+            x0 = x0.to(device)
+            t = torch.rand(x0.shape[0], 1, device=device)
+            x_t, noise = q_sample(x0, t)
+            pred_noise = model(x_t, t)
 
-    # model = Pointmaze_MLP(input_dim=2).to(device)
-    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    # loss_fn = nn.MSELoss()
+            loss = loss_fn(pred_noise, noise)
 
-    # for epoch in range(config.n_train_iters):
-    #     model.train()
-    #     total_loss = 0
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-    #     for x0 in dataloader:
-    #         x0 = x0.to(device)
-    #         t = torch.rand(x0.shape[0], 1, device=device)
-    #         x_t, noise = q_sample(x0, t)
-    #         pred_noise = model(x_t, t)
+            total_loss += loss.item() * x0.size(0)
 
-    #         loss = loss_fn(pred_noise, noise)
+        avg_loss = total_loss / len(dataset)
+        print(f"Epoch {epoch+1:03d}/{config.n_train_iters} | Loss: {avg_loss:.6f}")
 
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-
-    #         total_loss += loss.item() * x0.size(0)
-
-    #     avg_loss = total_loss / len(dataset)
-    #     print(f"Epoch {epoch+1:03d}/{config.n_train_iters} | Loss: {avg_loss:.6f}")
-
-    # torch.save(model.state_dict(), "diffusion_model.pt")
-    # print("Model saved to diffusion_model.pt")
-    # return model
+    torch.save(model.state_dict(), "diffusion_model.pt")
+    print("Model saved to diffusion_model.pt")
+    return model
