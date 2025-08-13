@@ -118,18 +118,13 @@ def search_guided_sample(
 # -------------------------
 # Visualization
 # -------------------------
-def visualize_on_ogbench_env(env, trajectory, task_id=1, title="Sampled Trajectories", every_k=5, particle_idx: int = 0, delay: float = 0.05):
-    traj = trajectory[:, particle_idx, :].cpu().numpy()  # [T+1, D]
+def visualize_on_ogbench_env(env, traj, task_id=1, title="Sampled Trajectories", every_k=5, particle_idx: int = 0, delay: float = 0.05):
 
     for pos in traj:
         qpos = pos  # [2]
         qvel = np.zeros_like(qpos)  # [2] or whatever matches the env
 
-        try:
-            env.unwrapped.set_state(qpos, qvel)
-        except Exception as e:
-            print(f"set_state failed: {e}")
-            break
+        env.unwrapped.set_state(qpos, qvel)
 
         frame = env.render()
         if isinstance(frame, np.ndarray):
@@ -145,14 +140,13 @@ def visualize_on_ogbench_env(env, trajectory, task_id=1, title="Sampled Trajecto
 # -------------------------
 # Main Entry
 # -------------------------
-def sample(config):
+def sample(config, env):
 
     device =  "cpu"
 
     model = Pointmaze_MLP(input_dim=2).to(device)
-    model.load_state_dict(torch.load(config.model_path, map_location=device))
+    model.load_state_dict(torch.load(config.model_path, map_location=device, weights_only=True))
 
-    env, _, _ = ogbench.make_env_and_datasets(config.dataset_name)
 
     ob, info = env.reset(
         options=dict(
@@ -162,9 +156,10 @@ def sample(config):
         )
     )
 
-    x_T = torch.randn(config.n_particles, 2, device=device)
+    x_T = torch.randn((config.eval_batch_size, 999, 2), device=device)
 
     if config.eval_mode == "ddim":
+        print("DDIM sampling")
         trajectory = reverse(x_T, model=model, T=config.n_discrete_steps, device=device)
     elif config.eval_mode == "bfs":
         trajectory = search_guided_sample(
@@ -178,4 +173,4 @@ def sample(config):
     else:
         raise ValueError(f"Unsupported eval_mode: {config.eval_mode}")
 
-    visualize_on_ogbench_env(env, trajectory, task_id=config.task_id)
+    visualize_on_ogbench_env(env, trajectory[-1, 0, :, :], task_id=config.task_id)

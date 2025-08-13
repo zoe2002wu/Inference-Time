@@ -9,7 +9,7 @@ def run_main(config):
     if config.mode == 'train':
         train(config, train_dataset, env)
     elif config.mode == 'eval':
-        sample(config)
+        sample(config, env)
     elif config.mode == 'continue':
         print("Continue training not yet implemented.")
 
@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--eval_mode', choices=['ddim', 'bfs', 'dfs'], default='ddim')
     parser.add_argument('--n_discrete_steps', type=int, default=100)
     parser.add_argument('--model_path', type=str, default='diffusion_model.pt')
+    parser.add_argument('--eval_batch_size', type=int, default=128)
 
     #test bfs
     parser.add_argument('--n_particles', type=int, default=256)

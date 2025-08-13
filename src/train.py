@@ -53,17 +53,10 @@ def train(config, train_dataset, env):
 
     device = "cpu"
 
-    ob, info = env.reset(
-        options=dict(
-            task_id=config.task_id,  # Set the evaluation task. Each environment provides five
-                                # evaluation goals, and `task_id` must be in [1, 5].
-            render_goal=True,  # Set to `True` to get a rendered goal image (optional).
-        )
-    )
-
     model = Pointmaze_MLP(input_dim=2).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = nn.MSELoss()
+
 
     for epoch in range(config.n_train_iters):
         model.train()

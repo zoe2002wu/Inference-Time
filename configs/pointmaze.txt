@@ -10,3 +10,4 @@ n_train_iters = 100
 eval_mode = ddim
 n_discrete_steps = 1000
 n_particles = 256
+eval_batch_size = 128
